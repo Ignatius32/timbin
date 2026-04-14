@@ -27,18 +27,25 @@ MAX_BARS = int(os.environ.get('MAX_BARS', '100000'))
 
 def load_btc_csv():
     """Load all BTC 1m data from local CSV files in repo"""
+    # Files from Binance Vision (download_data.sh)
     csv_files = [
-        'data/btc_1m_2023_2025.csv',
-        'data/btc_1m_2024.csv', 
-        'data/btc_1m_2024.csv',  # add more as needed
+        'data/btcusdt-1m-2023.csv',
+        'data/btcusdt-1m-2024.csv',
+        'data/btcusdt-1m-2025.csv',
+        'data/btcusdt-1m-2026.csv',
     ]
     
     all_prices = []
     for f in csv_files:
         if os.path.exists(f):
             print(f"Loading {f}...")
-            df = pd.read_csv(f, parse_dates=['timestamp'])
-            all_prices.append(df['close'].values)
+            try:
+                df = pd.read_csv(f, parse_dates=['timestamp'])
+                all_prices.append(df['close'].values)
+            except:
+                # Try loading without timestamp parsing
+                df = pd.read_csv(f)
+                all_prices.append(df['close'].values)
     
     if not all_prices:
         # Fallback to API if no CSV
@@ -54,6 +61,7 @@ def load_btc_csv():
     prices = np.concatenate(all_prices)
     # Remove duplicates if any
     prices = np.unique(prices)
+    print(f"Total bars: {len(prices)}")
     return prices
 
 class BTCDataset(Dataset):
@@ -68,14 +76,15 @@ class BTCDataset(Dataset):
 print(f"=== TimesFM Fine-tune ===")
 print(f"Model: {MODEL_NAME}")
 print(f"Bars: {MAX_BARS}, Epochs: {EPOCHS}, Batch: {BATCH_SIZE}")
+print(f"Using data from Binance Vision (2023-2026)")
 
-# Get data - use Binance API (limited) or load from file
-prices = get_btc_1m(1000)
-if len(prices) < CONTEXT_LEN*2:
-    print(f"Using synthetic data augmentation...")
-    prices = np.concatenate([prices] * 20)
+# Get data - load from CSV files (from Binance Vision)
+print("Loading BTC data from CSV files...")
+prices = load_btc_csv()
 
+# Use only last N bars (memory constraint)
 prices = prices[-MAX_BARS:]
+print(f"Using last {MAX_BARS} bars for training")
 print(f"Training samples: {len(prices) - CONTEXT_LEN*2 + 1}")
 
 ds = BTCDataset(prices, CONTEXT_LEN)
