@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
 Fine-tune TimesFM on BTC 1m data
-Run on AWS GPU, save model locally
+Run on AWS GPU, uses LOCAL CSV data from repo
 """
 import numpy as np
 import pandas as pd
-import requests
 import torch
 from torch.utils.data import Dataset, DataLoader
 from transformers import TimesFm2_5ModelForPrediction
@@ -19,21 +18,43 @@ torch.cuda.empty_cache()
 MODEL_NAME = "google/timesfm-2.5-200m-transformers"
 OUTPUT_DIR = "timesfm_btc_ft"
 
-# Hyperparams - tune for your GPU
+# Hyperparams
 EPOCHS = int(os.environ.get('EPOCHS', '1'))
 BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '2'))
 LEARNING_RATE = float(os.environ.get('LEARNING_RATE', '1e-5'))
 CONTEXT_LEN = 128
-MAX_BARS = int(os.environ.get('MAX_BARS', '50000'))
+MAX_BARS = int(os.environ.get('MAX_BARS', '100000'))
 
-def get_btc_1m(limit=1000):
-    url = "https://api.binance.com/api/v3/klines"
-    df = pd.DataFrame(
-        requests.get(url, params={"symbol": "BTCUSDT","interval":"1m","limit":limit}).json(),
-        columns=['t','o','h','l','c','v','ct','qv','tr','tbb','tbq','i']
-    )
-    for c in ['o','h','l','c','v']: df[c] = pd.to_numeric(df[c], errors='coerce')
-    return df['c'].values
+def load_btc_csv():
+    """Load all BTC 1m data from local CSV files in repo"""
+    csv_files = [
+        'data/btc_1m_2023_2025.csv',
+        'data/btc_1m_2024.csv', 
+        'data/btc_1m_2024.csv',  # add more as needed
+    ]
+    
+    all_prices = []
+    for f in csv_files:
+        if os.path.exists(f):
+            print(f"Loading {f}...")
+            df = pd.read_csv(f, parse_dates=['timestamp'])
+            all_prices.append(df['close'].values)
+    
+    if not all_prices:
+        # Fallback to API if no CSV
+        print("No CSV found, using Binance API...")
+        import requests
+        url = "https://api.binance.com/api/v3/klines"
+        df = pd.DataFrame(
+            requests.get(url, params={"symbol":"BTCUSDT","interval":"1m","limit":1000}).json(),
+            columns=['t','o','h','l','c','v','ct','qv','tr','tbb','tbq','i']
+        )
+        return pd.to_numeric(df['c'], errors='coerce').values
+    
+    prices = np.concatenate(all_prices)
+    # Remove duplicates if any
+    prices = np.unique(prices)
+    return prices
 
 class BTCDataset(Dataset):
     def __init__(self, prices, ctx):
