@@ -18,12 +18,12 @@ torch.cuda.empty_cache()
 MODEL_NAME = "google/timesfm-2.5-200m-transformers"
 OUTPUT_DIR = "timesfm_btc_ft"
 
-# Hyperparams
+# Hyperparams (AWS g4dn.xlarge = 16GB VRAM)
 EPOCHS = int(os.environ.get('EPOCHS', '1'))
-BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '2'))
+BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '1'))
 LEARNING_RATE = float(os.environ.get('LEARNING_RATE', '1e-5'))
 CONTEXT_LEN = 128
-MAX_BARS = int(os.environ.get('MAX_BARS', '100000'))
+MAX_BARS = int(os.environ.get('MAX_BARS', '50000'))
 
 def load_btc_csv():
     """Load all BTC 1m data from local CSV files in repo"""
@@ -90,9 +90,10 @@ print(f"Training samples: {len(prices) - CONTEXT_LEN*2 + 1}")
 ds = BTCDataset(prices, CONTEXT_LEN)
 loader = DataLoader(ds, batch_size=BATCH_SIZE, shuffle=True)
 
-print("Loading TimesFM...")
-model = TimesFm2_5ModelForPrediction.from_pretrained(MODEL_NAME)
+print("Loading TimesFM (AWS GPU)...")
+model = TimesFm2_5ModelForPrediction.from_pretrained(MODEL_NAME, device_map="cuda")
 model.train()
+print("Model on: cuda")
 
 opt = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
@@ -102,6 +103,8 @@ start = time.time()
 for ep in range(EPOCHS):
     total = 0
     for step, (ctx, tgt) in enumerate(loader):
+        ctx = ctx.cuda()
+        tgt = tgt.cuda()
         opt.zero_grad()
         out = model(past_values=ctx, return_dict=True)
         loss = torch.nn.MSELoss()(out.mean_predictions, tgt)
@@ -110,6 +113,7 @@ for ep in range(EPOCHS):
         total += loss.item()
         if step % 100 == 0:
             print(f"Ep{ep+1} Step{step} Loss:{loss.item():.2f}")
+        torch.cuda.empty_cache()
     
     print(f"Epoch {ep+1}: avg loss = {total/max(step,1):.2f}")
 
