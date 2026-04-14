@@ -23,7 +23,7 @@ EPOCHS = int(os.environ.get('EPOCHS', '1'))
 BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '1'))
 LEARNING_RATE = float(os.environ.get('LEARNING_RATE', '1e-5'))
 CONTEXT_LEN = 128
-MAX_BARS = int(os.environ.get('MAX_BARS', '50000'))
+MAX_BARS = int(os.environ.get('MAX_BARS', '200000'))  # ALL available data
 
 def load_btc_csv():
     """Load all BTC 1m data from local CSV files in repo"""
