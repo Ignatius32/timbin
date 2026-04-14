@@ -12,7 +12,7 @@
 # Example: ./deploy.sh my-key my-bucket
 
 KEY_NAME=${1:-your-key-name}
-S3_BUCKET=${2:-your-bucket}
+S3_BUCKET=${2:-timbinbucket}
 REGION="us-east-1"
 INSTANCE_TYPE="g4dn.xlarge"
 
